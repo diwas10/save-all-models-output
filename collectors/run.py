@@ -8,12 +8,11 @@ snapshot file to the Google-Drive-synced folder.
   python3 collectors/run.py --no-snapshot   # collect only
 
 Live database (written by server, proxy, collectors):  ~/AIHistory/ai_history.sqlite
-Snapshot (single file, synced by Google Drive):         $AI_HISTORY_EXPORT_DIR/ai_history-<machine>.sqlite
+Snapshot (single file, for you to upload / back up):  Documents/local-data/ai_history-<machine>.sqlite
 
-Several laptops: each writes only its own ai_history-<machine>.sqlite (so
-Drive never sees two laptops writing one file) and imports the other
-laptops' files it finds in the same folder. Every copy therefore ends up
-containing the history of all laptops.
+Several machines: each writes only its own ai_history-<machine>.sqlite and
+imports any other machines' files you copy into the same folder, so one
+file can end up with the history of all of them.
 """
 import os
 import sqlite3
@@ -27,7 +26,29 @@ sys.path.insert(0, str(HERE.parent / "server"))
 import agents  # noqa: E402
 import store  # noqa: E402
 
-EXPORT_DIR = Path(os.environ.get("AI_HISTORY_EXPORT_DIR", Path.home() / "AI" / "local-data"))
+def documents_dir() -> Path:
+    """The user's Documents folder on macOS, Linux and Windows (including
+    Windows setups where OneDrive has moved Documents)."""
+    if os.name == "nt":
+        try:
+            import winreg
+            key = r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key) as k:
+                return Path(os.path.expandvars(winreg.QueryValueEx(k, "Personal")[0]))
+        except OSError:
+            pass
+    elif sys.platform.startswith("linux"):
+        try:
+            import subprocess
+            out = subprocess.run(["xdg-user-dir", "DOCUMENTS"], capture_output=True, text=True).stdout.strip()
+            if out and Path(out) != Path.home():
+                return Path(out)
+        except OSError:
+            pass
+    return Path.home() / "Documents"
+
+
+EXPORT_DIR = Path(os.environ.get("AI_HISTORY_EXPORT_DIR") or documents_dir() / "local-data")
 SNAPSHOT_EVERY = int(os.environ.get("AI_HISTORY_SNAPSHOT_EVERY", 3600))  # seconds
 
 

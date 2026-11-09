@@ -1,5 +1,6 @@
-#!/bin/zsh
-# Reverses desktop/install.sh. Your saved data in ~/AIHistory is kept.
+#!/bin/bash
+# Reverses desktop/install.sh (proxy, certificate trust, proxy setting).
+# The server and collector are removed by: python3 scripts/setup.py --uninstall
 set -uo pipefail
 LA="$HOME/Library/LaunchAgents"
 CERT="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
@@ -12,13 +13,11 @@ networksetup -listallnetworkservices | tail -n +2 | grep -v '^\*' | while IFS= r
   fi
 done
 
-for label in local.aihistory.proxy local.aihistory.server; do
-  launchctl bootout "gui/$(id -u)/$label" 2>/dev/null && echo "✓ stopped $label"
-  rm -f "$LA/$label.plist"
-done
+launchctl bootout "gui/$(id -u)/local.aihistory.proxy" 2>/dev/null && echo "✓ stopped proxy"
+rm -f "$LA/local.aihistory.proxy.plist"
 
 if [[ -f "$CERT" ]]; then
   security remove-trusted-cert "$CERT" 2>/dev/null && echo "✓ certificate no longer trusted"
   security delete-certificate -c mitmproxy "$HOME/Library/Keychains/login.keychain-db" 2>/dev/null
 fi
-echo "Uninstalled. Data kept in ${AI_HISTORY_DIR:-$HOME/AIHistory}."
+echo "Desktop proxy removed."

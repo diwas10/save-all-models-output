@@ -9,6 +9,7 @@ Only listens on 127.0.0.1. Also serves /proxy.pac, which tells macOS to send
 *only* AI-chat hosts through the desktop-app proxy (see desktop/).
 """
 import json
+import os
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -125,5 +126,6 @@ if __name__ == "__main__":
         print("messages rebuilt:", store.reparse_all(store.connect()))
     else:
         db()
+        (store.DATA_DIR / "server.pid").write_text(str(os.getpid()))
         print(f"AI History server on http://{HOST}:{PORT}  ->  {store.DB_PATH}", flush=True)
         ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

@@ -1,19 +1,18 @@
-#!/bin/zsh
-# Sets up background recording for the browser extension server and the
-# desktop-app proxy. Undo everything with: desktop/uninstall.sh
+#!/bin/bash
+# macOS only: records the ChatGPT / Gemini / Claude desktop apps. Called by
+# scripts/setup.py (which also runs the local server this relies on).
+# Undo with: desktop/uninstall.sh
 #
-#  1. LaunchAgent: local server (127.0.0.1:8765) - always on, starts at login
-#  2. LaunchAgent: mitmdump proxy (127.0.0.1:8080) with our recorder addon
-#  3. Trusts mitmproxy's certificate in your login keychain (macOS asks for
-#     your password) so apps accept the proxy for AI hosts
-#  4. Points each network service at http://127.0.0.1:8765/proxy.pac, which
+#  1. LaunchAgent: mitmdump proxy (127.0.0.1:8080) with our recorder addon
+#  2. Trusts mitmproxy's certificate in your login keychain (macOS asks for
+#     your password once) so apps accept the proxy for AI hosts
+#  3. Points each network service at http://127.0.0.1:8765/proxy.pac, which
 #     routes only AI-chat hosts to the proxy
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 LA="$HOME/Library/LaunchAgents"
 DATA="${AI_HISTORY_DIR:-$HOME/AIHistory}"
-PY="$(python3 -c 'import sys; print(sys.executable)')"  # real interpreter, not a shim
 MITM="$(command -v mitmdump || true)"
 CERT="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
 PAC_URL="http://127.0.0.1:8765/proxy.pac"
@@ -52,26 +51,23 @@ EOF
   echo "✓ started $label"
 }
 
-echo "== 1. Local server"
-write_agent local.aihistory.server "$PY" "$REPO/server/server.py"
-
-echo "== 2. Desktop proxy"
+echo "== 1. Proxy"
 write_agent local.aihistory.proxy "$MITM" -q --listen-host 127.0.0.1 -p 8080 -s "$REPO/desktop/mitm_addon.py"
 
 for i in {1..20}; do [[ -f "$CERT" ]] && break; sleep 0.5; done
 [[ -f "$CERT" ]] || { echo "mitmproxy did not create its certificate; see $DATA/logs/local.aihistory.proxy.log" >&2; exit 1; }
 
-echo "== 3. Trust the proxy certificate (macOS will ask for your password)"
+echo "== 2. Trust the proxy certificate (macOS will ask for your password)"
 if security verify-cert -c "$CERT" >/dev/null 2>&1; then
   echo "✓ already trusted"
 elif [[ -n "${AIHISTORY_FROM_UPDATER:-}" ]]; then
-  echo "! certificate not trusted; run setup.sh by hand to approve it"  # no password prompts from background jobs
+  echo "! certificate not trusted; run scripts/setup.py by hand to approve it"  # no password prompts from background jobs
 else
   security add-trusted-cert -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CERT"
   echo "✓ trusted $CERT"
 fi
 
-echo "== 4. Route AI hosts through the proxy"
+echo "== 3. Route AI hosts through the proxy"
 networksetup -listallnetworkservices | tail -n +2 | grep -v '^\*' | while IFS= read -r svc; do
   networksetup -setautoproxyurl "$svc" "$PAC_URL"
   networksetup -setautoproxystate "$svc" on
