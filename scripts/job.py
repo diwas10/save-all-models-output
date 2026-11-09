@@ -15,10 +15,28 @@ JOBS = {
 }
 LOG_DIR = Path(os.environ.get("AI_HISTORY_DIR", Path.home() / "AIHistory")) / "logs"
 MAX_LOG = 5 * 1024 * 1024
+DATA_DIR = LOG_DIR.parent
+
+
+def loop():
+    """Used only on Linux machines with neither systemd nor cron: runs collect
+    every 10 minutes and update daily, each as a fresh process."""
+    import subprocess
+    import time
+    (DATA_DIR / "loop.pid").write_text(str(os.getpid()))
+    last_update = 0.0
+    while True:
+        subprocess.run([sys.executable, __file__, "collect"])
+        if time.time() - last_update > 86400:
+            subprocess.run([sys.executable, __file__, "update"])
+            last_update = time.time()
+        time.sleep(600)
 
 
 def main():
     name = sys.argv[1] if len(sys.argv) > 1 else ""
+    if name == "loop":
+        return loop()
     if name not in JOBS:
         sys.exit(f"usage: job.py {{{','.join(JOBS)}}}")
     LOG_DIR.mkdir(parents=True, exist_ok=True)

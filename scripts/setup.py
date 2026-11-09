@@ -63,15 +63,15 @@ def remove(path: Path):
         path.unlink()
 
 
-def stop_server():
-    """Stop a server started without a service manager (Windows, cron)."""
-    pidfile = DATA / "server.pid"
+def stop_server(name="server"):
+    """Stop a process started without a service manager (Windows, cron, no-scheduler loop)."""
+    pidfile = DATA / f"{name}.pid"
     try:
         pid = int(pidfile.read_text().strip())
     except (OSError, ValueError):
         return
     if DRY:
-        print(f"  stop server pid {pid}")
+        print(f"  stop {name} pid {pid}")
         return
     if PLATFORM == "windows":
         subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
@@ -150,6 +150,17 @@ def linux_install_all(jobs):
         # keep jobs running when you're not logged in (agent / headless machines)
         run(["loginctl", "enable-linger", os.environ.get("USER", "")])
         return
+    py = python_exe()
+    if not shutil.which("crontab"):
+        # Neither systemd nor cron (minimal servers, containers): run everything
+        # now as background processes. They stop at reboot, so say how to keep them.
+        for n in ("server", "loop"):
+            stop_server(n)
+            subprocess.Popen([py, str(JOB), n], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("   ! no systemd or cron here: started the jobs for this session only.\n"
+              "     To keep them after a reboot, install cron (e.g. sudo apt install cron) and run setup again.")
+        return
     # cron fallback
     cur = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
     lines = [ln for ln in cur.splitlines() if CRON_TAG not in ln]
@@ -171,10 +182,12 @@ def linux_uninstall_all(names):
                 run(["systemctl", "--user", "disable", "--now", f"ai-history-{n}.{kind}"])
                 remove(SYSTEMD_DIR / f"ai-history-{n}.{kind}")
         run(["systemctl", "--user", "daemon-reload"])
-    cur = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
-    if CRON_TAG in cur:
-        run(["crontab", "-"], input="\n".join(ln for ln in cur.splitlines() if CRON_TAG not in ln) + "\n")
+    if shutil.which("crontab"):
+        cur = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
+        if CRON_TAG in cur:
+            run(["crontab", "-"], input="\n".join(ln for ln in cur.splitlines() if CRON_TAG not in ln) + "\n")
     stop_server()
+    stop_server("loop")
 
 
 # ---- Windows: Startup folder (server) + Task Scheduler (timed jobs) ----------------
