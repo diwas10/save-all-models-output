@@ -25,6 +25,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "server"))
 import agents  # noqa: E402
 import exports  # noqa: E402
+import more_agents  # noqa: E402
 import store  # noqa: E402
 
 def documents_dir() -> Path:
@@ -128,7 +129,7 @@ def snapshot(con: sqlite3.Connection) -> Path:
 
 def main():
     con = store.connect()
-    for name, fn in agents.COLLECTORS.items():
+    for name, fn in {**agents.COLLECTORS, **more_agents.COLLECTORS}.items():
         t = time.time()
         try:
             n = fn(con, store)

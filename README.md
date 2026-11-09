@@ -41,6 +41,15 @@ Things a script can't do for you:
 | Codex | `~/.codex/sessions/**/*.jsonl` |
 | Antigravity | `~/.gemini/antigravity/conversations/*.db` (protobuf, decoded) plus its search index for older encrypted chats |
 | OpenCode | `~/.local/share/opencode/opencode.db` (or `$XDG_DATA_HOME/opencode`), plus the JSON `storage/` folder used by older versions |
+| Cline, Roo Code, Kilo Code | `tasks/*/api_conversation_history.json` in the extension's storage, in every VS Code-like editor (VS Code, Cursor, Windsurf, VSCodium, Antigravity, Kiro, Trae, and the `~/.vscode-server` folders on remote machines), plus `~/.cline/data/tasks` |
+| Cursor | `Cursor/User/globalStorage/state.vscdb` (chats and agent runs, with tool calls) |
+| GitHub Copilot Chat | `User/workspaceStorage/*/chatSessions/*.json(l)` in VS Code-like editors |
+| Gemini CLI, Qwen Code | `~/.gemini/tmp/*/chats/*.json`, `~/.qwen/tmp/*/chats/*.json` |
+| Continue | `~/.continue/sessions/*.json` |
+| Goose | `~/.local/share/goose/sessions/` (`sessions.db`, or `*.jsonl` from older versions) |
+| Amp | `~/.local/share/amp/threads/*.json` |
+| Aider | `.aider.chat.history.md` in your projects (looks for new ones under your home folder once a day) |
+| Devin | Devin's API, since Devin runs in the cloud. Create a key in Devin (Settings → API keys), then run `python3 collectors/more_agents.py devin-key` once per machine (or set `DEVIN_API_KEY`) |
 | chatgpt.com, claude.ai, gemini.google.com | browser extension → local server `127.0.0.1:8765` |
 | ChatGPT / Gemini / Claude desktop apps | macOS only: mitmproxy on `127.0.0.1:8080`, AI hosts only |
 | Past chats (ChatGPT, Claude, Gemini) | the export zip each service emails you (see below) |
@@ -53,6 +62,8 @@ Request an export from ChatGPT (Settings → Data controls → Export), Claude (
 - import it now: `python3 collectors/exports.py ~/Downloads/takeout-*.zip`
 
 Re-importing is safe: an export that overlaps what you already have doesn't create duplicates. Only text is imported. Attachments are listed by name and stay in the zip.
+
+Not supported: Windsurf's own Cascade chats and Zed's agent threads, because both are stored encrypted or compressed in formats that aren't documented. Cline, Roo Code or Copilot running *inside* Windsurf are recorded.
 
 ## Data
 
@@ -75,7 +86,7 @@ python3 server/server.py reparse    # rebuild messages after a parser fix
 ```
 setup.sh / setup.cmd      entry points → scripts/setup.py (all OSes)
 scripts/                  setup.py · job.py (runs each background job) · update.py
-collectors/               Claude Code, Codex, Antigravity, OpenCode, export-zip importers + snapshot/merge
+collectors/               agents.py, more_agents.py (one collector per agent), exports.py, run.py (snapshot/merge)
 server/                   local receiver for the extension; shared storage + parsers
 extension/                Chrome + Firefox extension (python3 extension/build.py)
 desktop/                  macOS mitmproxy addon + install
