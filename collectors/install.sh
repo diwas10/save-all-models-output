@@ -54,5 +54,5 @@ if [[ -z "${AIHISTORY_FROM_UPDATER:-}" ]]; then
   agent local.aihistory.update 86400 /bin/zsh "$REPO/scripts/update.sh"
 fi
 echo "Live DB:  $DATA/ai_history.sqlite"
-echo "Snapshot: $EXPORT/ai_history.sqlite (hourly when changed)"
+echo "Snapshot: $EXPORT/ai_history-<machine>.sqlite (hourly when changed)"
 echo "Logs:     $DATA/logs/"

@@ -6,7 +6,11 @@ set -uo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO" || exit 1
 before=$(git rev-parse HEAD)
-git pull --ff-only -q || { echo "$(date): pull failed (local changes or offline)"; exit 0; }
+branch=$(git rev-parse --abbrev-ref HEAD)
+if ! git fetch -q origin "$branch" || ! git merge --ff-only -q FETCH_HEAD; then
+  echo "$(date): update skipped (offline, or local changes that can't fast-forward)"
+  exit 0
+fi
 after=$(git rev-parse HEAD)
 if [[ "$before" != "$after" ]]; then
   echo "$(date): updated ${before:0:7} -> ${after:0:7}, re-running setup"

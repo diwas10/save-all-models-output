@@ -87,8 +87,14 @@ def connect(check_same_thread: bool = True) -> sqlite3.Connection:
     # Columns added after the first release:
     for table, col in (("conversations", "project"), ("conversations", "machine"), ("captures", "machine")):
         if col not in {r[1] for r in con.execute(f"PRAGMA table_info({table})")}:
-            con.execute(f"ALTER TABLE {table} ADD COLUMN {col} TEXT")
-            con.execute(f"UPDATE {table} SET {col}=? WHERE ?='machine'", (MACHINE, col))
+            try:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {col} TEXT")
+            except sqlite3.OperationalError as e:  # another process added it first
+                if "duplicate column" not in str(e):
+                    raise
+                continue
+            if col == "machine":  # rows that existed before were made on this Mac
+                con.execute(f"UPDATE {table} SET machine=?", (MACHINE,))
     con.commit()
     return con
 
