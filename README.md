@@ -40,6 +40,7 @@ Things a script can't do for you:
 | Claude Code | `~/.claude/projects/**/*.jsonl` (collector, every 10 min) |
 | Codex | `~/.codex/sessions/**/*.jsonl` |
 | Antigravity | `~/.gemini/antigravity/conversations/*.db` (protobuf, decoded) plus its search index for older encrypted chats |
+| OpenCode | `~/.local/share/opencode/opencode.db` (or `$XDG_DATA_HOME/opencode`), plus the JSON `storage/` folder used by older versions |
 | chatgpt.com, claude.ai, gemini.google.com | browser extension → local server `127.0.0.1:8765` |
 | ChatGPT / Gemini / Claude desktop apps | macOS only: mitmproxy on `127.0.0.1:8080`, AI hosts only |
 

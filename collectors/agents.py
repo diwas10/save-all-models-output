@@ -4,10 +4,13 @@
   codex        ~/.codex/sessions/**/*.jsonl + archived     (incremental, by byte offset)
   antigravity  ~/.gemini/antigravity/conversations/*.db    (protobuf steps, re-read on change)
                + conversation_summaries.db search index    (text of older, encrypted .pb chats)
+  opencode     ~/.local/share/opencode/opencode.db         (SQLite, re-read on change)
+               + storage/{session,message,part}/*.json     (older OpenCode versions)
 """
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sqlite3
 import tempfile
@@ -20,6 +23,8 @@ HOME = Path.home()
 CLAUDE_DIR = HOME / ".claude" / "projects"
 CODEX_DIRS = [HOME / ".codex" / "sessions", HOME / ".codex" / "archived_sessions"]
 AGY_DIR = HOME / ".gemini" / "antigravity"
+# OpenCode follows XDG on every OS (~/.local/share/opencode, also on macOS/Windows).
+OPENCODE_DIR = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local" / "share") / "opencode"
 
 
 # ---- incremental JSONL reading ---------------------------------------------
@@ -285,4 +290,115 @@ def antigravity(con, store) -> int:
     return total
 
 
-COLLECTORS = {"claude_code": claude_code, "codex": codex, "antigravity": antigravity}
+# ---- OpenCode ---------------------------------------------------------------------
+# A session has messages (role, model) and each message has parts:
+# text, reasoning, tool (input + output in `state`), file, patch, step-start/finish.
+
+def _ms(v) -> str | None:
+    return datetime.fromtimestamp(v / 1000, timezone.utc).isoformat() if isinstance(v, (int, float)) else None
+
+
+def _opencode_rows(msg: dict, parts: list[dict]) -> list[dict]:
+    role = msg.get("role")
+    model = "/".join(x for x in (msg.get("providerID"), msg.get("modelID")) if x) or None
+    created = _ms((msg.get("time") or {}).get("created"))
+    rows = []
+    for part in parts:
+        t, pid = part.get("type"), part.get("id")
+        if not pid or t in ("step-start", "step-finish", "snapshot", "compaction"):
+            continue
+        ts = _ms((part.get("time") or {}).get("start")) or created
+        base = {"parent_id": msg.get("id"), "model": model, "created_at": ts}
+        if t == "text":
+            if part.get("synthetic") or not (part.get("text") or "").strip():
+                continue
+            rows.append({**base, "message_id": pid, "role": role, "kind": "text", "content": part["text"]})
+        elif t == "reasoning":
+            if (part.get("text") or "").strip():
+                rows.append({**base, "message_id": pid, "role": "assistant", "kind": "thinking", "content": part["text"]})
+        elif t == "tool":
+            st = part.get("state") or {}
+            rows.append({**base, "message_id": f"{pid}#call", "role": "assistant", "kind": "tool_call",
+                         "content": json.dumps({"name": part.get("tool"), "input": st.get("input"), "id": part.get("callID")})})
+            out = st.get("output") if st.get("status") == "completed" else st.get("error")
+            if out:
+                rows.append({**base, "message_id": f"{pid}#result", "role": "tool", "kind": "tool_result",
+                             "content": out if isinstance(out, str) else json.dumps(out),
+                             "created_at": _ms((st.get("time") or {}).get("end")) or ts})
+        elif t == "file":
+            rows.append({**base, "message_id": pid, "role": role, "kind": "other",
+                         "content": json.dumps({"file": part.get("filename"), "mime": part.get("mime"),
+                                                "url": None if str(part.get("url", "")).startswith("data:") else part.get("url")})})
+        elif t == "patch":
+            rows.append({**base, "message_id": pid, "role": "assistant", "kind": "other",
+                         "content": json.dumps({"patch": part.get("files")})})
+    return rows
+
+
+def _opencode_conv(sess: dict) -> dict:
+    model = sess.get("model")
+    if isinstance(model, str) and model.startswith("{"):
+        try:
+            m = json.loads(model)
+            model = "/".join(x for x in (m.get("providerID"), m.get("modelID") or m.get("id")) if x) or None
+        except ValueError:
+            pass
+    t = sess.get("time") if isinstance(sess.get("time"), dict) else {}
+    return {"id": sess["id"], "title": sess.get("title") or None, "project": sess.get("directory"),
+            "model": model if isinstance(model, str) else None,
+            "updated_at": _ms(sess.get("time_updated") or t.get("updated"))}
+
+
+def opencode(con, store) -> int:
+    total = 0
+    db = OPENCODE_DIR / "opencode.db"
+    if db.exists() and _changed(con, db):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = sqlite3.connect(_copy_db(db, Path(tmp)))
+            src.row_factory = sqlite3.Row
+            parts: dict[str, list] = {}
+            for r in src.execute("SELECT id, message_id, data FROM part ORDER BY time_created, id"):
+                d = json.loads(r["data"]); d.setdefault("id", r["id"])
+                parts.setdefault(r["message_id"], []).append(d)
+            msgs: dict[str, list] = {}
+            for r in src.execute("SELECT id, session_id, data FROM message ORDER BY time_created, id"):
+                d = json.loads(r["data"]); d.setdefault("id", r["id"])
+                msgs.setdefault(r["session_id"], []).append(d)
+            for sess in src.execute("SELECT * FROM session"):
+                sess = dict(sess)
+                rows = [row for m in msgs.get(sess["id"], []) for row in _opencode_rows(m, parts.get(m["id"], []))]
+                if rows:
+                    total += store.write_conversation(con, "opencode", _opencode_conv(sess), rows, "transcript")
+            src.close()
+        con.commit()
+
+    # Older OpenCode: one JSON file per session / message / part.
+    storage = OPENCODE_DIR / "storage"
+    for sess_file in sorted((storage / "session").glob("*/*.json")) if (storage / "session").exists() else []:
+        sid = sess_file.stem
+        mdir = storage / "message" / sid
+        files = [sess_file]
+        for mf in mdir.glob("*.json") if mdir.exists() else []:  # a message and all of its parts
+            files += [mf, *(storage / "part" / mf.stem).glob("*.json")]
+        stamp = max(f.stat().st_mtime for f in files)
+        row = con.execute("SELECT mtime FROM collector_state WHERE path=?", (str(sess_file),)).fetchone()
+        if row and row[0] >= stamp:
+            continue
+        try:
+            sess = json.loads(sess_file.read_text())
+            rows = []
+            for mf in sorted(mdir.glob("*.json")) if mdir.exists() else []:
+                msg = json.loads(mf.read_text())
+                pdir = storage / "part" / msg.get("id", mf.stem)
+                parts = [json.loads(pf.read_text()) for pf in sorted(pdir.glob("*.json"))] if pdir.exists() else []
+                rows += _opencode_rows(msg, parts)
+        except (OSError, ValueError):
+            continue
+        if rows:
+            total += store.write_conversation(con, "opencode", _opencode_conv(sess), rows, "transcript")
+        con.execute("INSERT OR REPLACE INTO collector_state (path, mtime, size, offset) VALUES (?,?,0,0)", (str(sess_file), stamp))
+        con.commit()
+    return total
+
+
+COLLECTORS = {"claude_code": claude_code, "codex": codex, "antigravity": antigravity, "opencode": opencode}
