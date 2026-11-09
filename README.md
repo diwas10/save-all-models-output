@@ -17,7 +17,7 @@ git clone https://github.com/diwas10/save-all-models-output.git ~/save-all-model
 
 **Windows**
 ```bat
-git clone https://github.com/diwas10/save-all-models-output.git %USERPROFILE%\save-all-models-output && %USERPROFILE%\save-all-models-output\setup.cmd
+git clone https://github.com/diwas10/save-all-models-output.git "%USERPROFILE%\save-all-models-output" && "%USERPROFILE%\save-all-models-output\setup.cmd"
 ```
 
 After that, everything runs in the background and starts at login. Running setup again is safe. Options: `--no-proxy` skips the macOS desktop-app proxy, `--dry-run` shows what setup would do, and `uninstall.sh` / `uninstall.cmd` removes the background jobs (your data is kept).

@@ -25,6 +25,11 @@ REPO = Path(__file__).resolve().parent.parent
 HOME = Path.home()
 DATA = Path(os.environ.get("AI_HISTORY_DIR", HOME / "AIHistory"))
 JOB = REPO / "scripts" / "job.py"
+for _s in (sys.stdout, sys.stderr):  # Windows uses cp1252 when output is redirected
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 ARGS = set(sys.argv[1:])
 DRY = "--dry-run" in ARGS
 FROM_UPDATER = "--from-updater" in ARGS
@@ -203,7 +208,8 @@ def win_install(name, interval):
         write(win_startup() / f"ai-history-{name}.cmd", f'@start "" "{py}" "{JOB}" {name}\r\n')
         stop_server()
         if not DRY:
-            subprocess.Popen([py, str(JOB), name], creationflags=0x00000008 | 0x00000200)  # detached
+            subprocess.Popen([py, str(JOB), name], creationflags=0x00000008 | 0x00000200,  # detached, no console
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return
     tr = f'"{py}" "{JOB}" {name}'
     if interval < 3600:
