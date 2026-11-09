@@ -11,7 +11,7 @@ history files (nothing is intercepted), and re-reads a file only when it changed
   continue           ~/.continue/sessions/*.json
   goose              ~/.local/share/goose/sessions/  (sessions.db, or *.jsonl from older versions)
   amp                ~/.local/share/amp/threads/*.json
-  aider              .aider.chat.history.md in your projects (searched for once a day)
+  aider              .aider.chat.history.md in your projects (searched for hourly)
   devin              Devin's API (Devin runs in the cloud). Needs an API key, see devin().
 
 Everything here is read from undocumented formats, so it is best-effort: a
@@ -663,7 +663,7 @@ def aider_sessions(text: str):
 def aider(con, store) -> int:
     known = {Path(p[len("aider:"):]) for (p,) in con.execute("SELECT path FROM collector_state WHERE path LIKE 'aider:%'")}
     scan = con.execute("SELECT mtime FROM collector_state WHERE path='aider-scan'").fetchone()
-    if not scan or time.time() - scan[0] > 86400:
+    if not scan or time.time() - scan[0] > 3600:
         for f in _find_aider(HOME):
             if f not in known:
                 known.add(f)

@@ -48,7 +48,7 @@ Things a script can't do for you:
 | Continue | `~/.continue/sessions/*.json` |
 | Goose | `~/.local/share/goose/sessions/` (`sessions.db`, or `*.jsonl` from older versions) |
 | Amp | `~/.local/share/amp/threads/*.json` |
-| Aider | `.aider.chat.history.md` in your projects (looks for new ones under your home folder once a day) |
+| Aider | `.aider.chat.history.md` in your projects (looks for new ones under your home folder every hour) |
 | Devin | Devin's API, since Devin runs in the cloud. Create a key in Devin (Settings → API keys), then run `python3 collectors/more_agents.py devin-key` once per machine (or set `DEVIN_API_KEY`) |
 | chatgpt.com, claude.ai, gemini.google.com | browser extension → local server `127.0.0.1:8765` |
 | ChatGPT / Gemini / Claude desktop apps | macOS only: mitmproxy on `127.0.0.1:8080`, AI hosts only |
