@@ -43,6 +43,16 @@ Things a script can't do for you:
 | OpenCode | `~/.local/share/opencode/opencode.db` (or `$XDG_DATA_HOME/opencode`), plus the JSON `storage/` folder used by older versions |
 | chatgpt.com, claude.ai, gemini.google.com | browser extension → local server `127.0.0.1:8765` |
 | ChatGPT / Gemini / Claude desktop apps | macOS only: mitmproxy on `127.0.0.1:8080`, AI hosts only |
+| Past chats (ChatGPT, Claude, Gemini) | the export zip each service emails you (see below) |
+
+### Importing past chats
+
+Request an export from ChatGPT (Settings → Data controls → Export), Claude (Settings → Privacy → Export data) or Google Takeout (select **My Activity → Gemini Apps**, plus **Gemini** and **Gemini in Workspace** if listed). Then either:
+
+- drop the `.zip` into `Documents/local-data`, and the next background run (within 10 minutes) imports it once, or
+- import it now: `python3 collectors/exports.py ~/Downloads/takeout-*.zip`
+
+Re-importing is safe: an export that overlaps what you already have doesn't create duplicates. Only text is imported. Attachments are listed by name and stay in the zip.
 
 ## Data
 
@@ -65,7 +75,7 @@ python3 server/server.py reparse    # rebuild messages after a parser fix
 ```
 setup.sh / setup.cmd      entry points → scripts/setup.py (all OSes)
 scripts/                  setup.py · job.py (runs each background job) · update.py
-collectors/               Claude Code, Codex, Antigravity importers + snapshot/merge
+collectors/               Claude Code, Codex, Antigravity, OpenCode, export-zip importers + snapshot/merge
 server/                   local receiver for the extension; shared storage + parsers
 extension/                Chrome + Firefox extension (python3 extension/build.py)
 desktop/                  macOS mitmproxy addon + install

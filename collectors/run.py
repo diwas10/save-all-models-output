@@ -24,6 +24,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "server"))
 import agents  # noqa: E402
+import exports  # noqa: E402
 import store  # noqa: E402
 
 def documents_dir() -> Path:
@@ -141,6 +142,11 @@ def main():
         except Exception as e:
             con.rollback()
             print(f"other laptops ERROR {type(e).__name__}: {e}", flush=True)
+        try:
+            print(f"{'export zips':<12} {exports.import_dropped(con, EXPORT_DIR):>7} rows", flush=True)
+        except Exception as e:
+            con.rollback()
+            print(f"export zips ERROR {type(e).__name__}: {e}", flush=True)
     if "--no-snapshot" in sys.argv:
         return
     if "--scheduled" in sys.argv and not snapshot_due(con):
