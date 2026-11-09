@@ -1,0 +1,8 @@
+extension/dist/
+__pycache__/
+*.pyc
+.DS_Store
+exports/
+data/
+*.sqlite*
+.no-proxy

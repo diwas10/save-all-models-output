@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 13px -apple-system, system-ui, sans-serif; width: 280px; margin: 12px; }
+  h1 { font-size: 14px; margin: 0 0 10px; }
+  .row { display: flex; justify-content: space-between; margin: 6px 0; }
+  .ok { color: #16a34a; } .bad { color: #dc2626; }
+  .err { font-size: 11px; color: #dc2626; margin-top: 6px; word-break: break-word; }
+  button { width: 100%; margin-top: 8px; padding: 6px; }
+  #grant { display: none; }
+</style>
+</head>
+<body>
+  <h1>AI Chat Recorder</h1>
+  <div class="row"><span>Local server</span><span id="server">checking…</span></div>
+  <div class="row"><span>Saved</span><span id="sent">0</span></div>
+  <div class="row"><span>Waiting in queue</span><span id="queue">0</span></div>
+  <div class="row"><label for="enabled">Recording</label><input type="checkbox" id="enabled"></div>
+  <div class="err" id="error"></div>
+  <button id="grant">Grant site access (needed in Firefox)</button>
+  <button id="retry">Retry queued now</button>
+  <script src="popup.js"></script>
+</body>
+</html>
