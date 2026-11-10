@@ -2,6 +2,7 @@
 """Cross-platform setup (macOS, Linux, Windows). Safe to run again.
 
   python3 scripts/setup.py              # install / update everything
+  python3 scripts/setup.py ~/AI/local-data   # same, using that data folder
   python3 scripts/setup.py --no-proxy   # skip the macOS desktop-app proxy
   python3 scripts/setup.py --uninstall  # remove jobs (data is kept)
   python3 scripts/setup.py --dry-run    # show what would be done
@@ -9,7 +10,7 @@
 Background jobs (all run `python scripts/job.py <name>`):
   server   always on    receives browser-extension captures on 127.0.0.1:8765
   collect  every 10 min imports Claude Code / Codex / Antigravity, writes the
-                        snapshot to Documents/local-data
+                        snapshot to your data folder
   update   daily        git fast-forward + re-run setup when the code changed
 
 Schedulers: macOS launchd · Linux systemd --user (cron if no systemd) ·
@@ -31,6 +32,10 @@ for _s in (sys.stdout, sys.stderr):  # Windows uses cp1252 when output is redire
     except (AttributeError, ValueError):
         pass
 ARGS = set(sys.argv[1:])
+# Data folder: the snapshot is written there, and other machines' snapshots
+# and export zips are read from there. Saved, so later runs (and the
+# updater) keep using it. Not given: keep the saved one, else Documents/local-data.
+FOLDER = next((a for a in sys.argv[1:] if not a.startswith("--")), None)
 DRY = "--dry-run" in ARGS
 FROM_UPDATER = "--from-updater" in ARGS
 PLATFORM = os.environ.get("AI_HISTORY_PLATFORM") or ("windows" if os.name == "nt" else sys.platform)
@@ -255,7 +260,21 @@ def mac_proxy():
 
 # ---- main ---------------------------------------------------------------------------
 
+def collector():
+    sys.path.insert(0, str(REPO / "collectors"))
+    sys.path.insert(0, str(REPO / "server"))
+    import run  # noqa: E402
+    return run
+
+
 def install():
+    if FOLDER:
+        col = collector()
+        if DRY:
+            print(f"  save data folder {Path(FOLDER).expanduser().resolve()}")
+        else:
+            col.EXPORT_DIR = col.save_folder(FOLDER)
+            col.EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     jobs = [j for j in JOBS if not (FROM_UPDATER and j[0] == "update")]  # don't kill the running updater
     print(f"== Background jobs ({PLATFORM})")
     if PLATFORM == "darwin":
@@ -281,15 +300,16 @@ def install():
 
     if FROM_UPDATER:
         return
-    sys.path.insert(0, str(REPO / "collectors"))
-    sys.path.insert(0, str(REPO / "server"))
-    import run as collector  # noqa: E402
+    folder = collector().EXPORT_DIR
     print(f"""
 ────────────────────────────────────────────────────────────
 ✓ Done. Everything runs in the background and starts at login.
 
-Your data:  {collector.snapshot_path()}
+Your data:  {collector().snapshot_path()}
             (refreshed at most hourly; upload it wherever you like)
+Folder:     {folder}
+            (drop export zips and other machines' snapshots here;
+             change it with  ./setup.sh <folder>)
 
 Browsers don't let scripts install extensions; load it once (30 seconds):
   Chrome:  chrome://extensions → Developer mode → Load unpacked →
@@ -311,7 +331,7 @@ def uninstall():
     elif PLATFORM == "windows":
         for n in names:
             win_uninstall(n)
-    print(f"Removed background jobs. Your data is kept in {DATA} and Documents/local-data.")
+    print(f"Removed background jobs. Your data is kept in {DATA} and {collector().EXPORT_DIR}.")
 
 
 if __name__ == "__main__":

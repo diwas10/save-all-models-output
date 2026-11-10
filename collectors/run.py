@@ -6,14 +6,20 @@ snapshot file to the Google-Drive-synced folder.
   python3 collectors/run.py --scheduled     # collect; snapshot only if data changed
                                             #   and the last one is over an hour old
   python3 collectors/run.py --no-snapshot   # collect only
+  python3 collectors/run.py --folder DIR    # use DIR instead of the saved folder
+
+The folder (snapshot, other machines' files, export zips) is, in order:
+--folder, $AI_HISTORY_EXPORT_DIR, the one saved by `setup.sh <folder>`
+(~/AIHistory/config.json), else Documents/local-data.
 
 Live database (written by server, proxy, collectors):  ~/AIHistory/ai_history.sqlite
-Snapshot (single file, for you to upload / back up):  Documents/local-data/ai_history-<machine>.sqlite
+Snapshot (single file, for you to upload / back up):  <folder>/ai_history-<machine>.sqlite
 
 Several machines: each writes only its own ai_history-<machine>.sqlite and
 imports any other machines' files you copy into the same folder, so one
 file can end up with the history of all of them.
 """
+import json
 import os
 import sqlite3
 import sys
@@ -50,7 +56,41 @@ def documents_dir() -> Path:
     return Path.home() / "Documents"
 
 
-EXPORT_DIR = Path(os.environ.get("AI_HISTORY_EXPORT_DIR") or documents_dir() / "local-data")
+CONFIG = store.DATA_DIR / "config.json"
+
+
+def load_config() -> dict:
+    try:
+        return json.loads(CONFIG.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_folder(folder) -> Path:
+    """Remember the folder for every later run (used by setup.py)."""
+    folder = Path(folder).expanduser().resolve()
+    cfg = load_config()
+    cfg["folder"] = str(folder)
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    return folder
+
+
+def default_folder() -> Path:
+    return Path(os.environ.get("AI_HISTORY_EXPORT_DIR") or load_config().get("folder")
+                or documents_dir() / "local-data").expanduser()
+
+
+def folder_arg(argv):
+    for i, a in enumerate(argv):
+        if a == "--folder" and i + 1 < len(argv):
+            return argv[i + 1]
+        if a.startswith("--folder="):
+            return a.split("=", 1)[1]
+    return None
+
+
+EXPORT_DIR = default_folder()
 SNAPSHOT_EVERY = int(os.environ.get("AI_HISTORY_SNAPSHOT_EVERY", 3600))  # seconds
 
 
@@ -128,6 +168,9 @@ def snapshot(con: sqlite3.Connection) -> Path:
 
 
 def main():
+    global EXPORT_DIR
+    if folder_arg(sys.argv[1:]):
+        EXPORT_DIR = Path(folder_arg(sys.argv[1:])).expanduser()
     con = store.connect()
     for name, fn in {**agents.COLLECTORS, **more_agents.COLLECTORS}.items():
         t = time.time()

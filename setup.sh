@@ -1,5 +1,5 @@
 #!/bin/sh
-# macOS / Linux:  ./setup.sh   (Windows: setup.cmd)   Options: --no-proxy --uninstall --dry-run
+# macOS / Linux:  ./setup.sh [data folder]   (Windows: setup.cmd)   Options: --no-proxy --uninstall --dry-run
 cd "$(dirname "$0")" || exit 1
 if ! command -v python3 >/dev/null 2>&1; then
   case "$(uname)" in

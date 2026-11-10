@@ -4,7 +4,7 @@
 
 Records every AI conversation on a machine (prompts, answers, thinking, tool calls and tool results) into one SQLite file:
 
-**`Documents/local-data/ai_history-<machine>.sqlite`** on macOS, Linux and Windows.
+**`Documents/local-data/ai_history-<machine>.sqlite`** on macOS, Linux and Windows, or in a folder you choose.
 
 Upload or back up that file however you like. Nothing is uploaded automatically.
 
@@ -19,6 +19,8 @@ git clone https://github.com/diwas10/save-all-models-output.git ~/save-all-model
 ```bat
 git clone https://github.com/diwas10/save-all-models-output.git "%USERPROFILE%\save-all-models-output" && "%USERPROFILE%\save-all-models-output\setup.cmd"
 ```
+
+**Choosing the data folder:** add a folder path to the setup command, for example `~/save-all-models-output/setup.sh ~/AI/local-data` (Windows: `setup.cmd "D:\AI\local-data"`). Without one, setup keeps the folder you chose last time, or uses `Documents/local-data`. The folder is saved in `~/AIHistory/config.json`, so the background jobs and the daily updater keep using it. To change it later, run setup again with the new path. A one-off run can use `collectors/run.py --folder <path>`.
 
 After that, everything runs in the background and starts at login. Running setup again is safe. Options: `--no-proxy` skips the macOS desktop-app proxy, `--dry-run` shows what setup would do, and `uninstall.sh` / `uninstall.cmd` removes the background jobs (your data is kept).
 
@@ -58,8 +60,8 @@ Things a script can't do for you:
 
 Request an export from ChatGPT (Settings → Data controls → Export), Claude (Settings → Privacy → Export data) or Google Takeout (select **My Activity → Gemini Apps**, plus **Gemini** and **Gemini in Workspace** if listed). Then either:
 
-- drop the `.zip` into `Documents/local-data`, and the next background run (within 10 minutes) imports it once, or
-- import it now: `python3 collectors/exports.py ~/Downloads/takeout-*.zip`
+- drop the `.zip` into your data folder, and the next background run (within 10 minutes) imports it once, or
+- import it now: `python3 collectors/exports.py ~/Downloads/takeout-*.zip`, or `python3 collectors/exports.py` with no arguments to import every export (zipped or unzipped) in your data folder
 
 Re-importing is safe: an export that overlaps what you already have doesn't create duplicates. Only text is imported. Attachments are listed by name and stay in the zip.
 
@@ -68,8 +70,8 @@ Not supported: Windsurf's own Cascade chats and Zed's agent threads, because bot
 ## Data
 
 - `~/AIHistory/ai_history.sqlite` is the live database (with logs in `~/AIHistory/logs/`).
-- `Documents/local-data/ai_history-<machine>.sqlite` is a consistent snapshot, rewritten at most hourly and only when something changed. Copy this one.
-- **Combining machines:** copy other machines' `ai_history-*.sqlite` files into your `Documents/local-data`. The next run merges them in without creating duplicates, and the `machine` column shows where each row came from.
+- `<data folder>/ai_history-<machine>.sqlite` is a consistent snapshot, rewritten at most hourly and only when something changed. Copy this one.
+- **Combining machines:** copy other machines' `ai_history-*.sqlite` files into your data folder. The next run merges them in without creating duplicates, and the `machine` column shows where each row came from.
 
 Tables: `conversations` (source, title, model, project, machine), `messages` (role: user/assistant/tool; kind: text/thinking/tool_call/tool_result; content; model; created_at), `captures` (raw browser and proxy traffic; headers and cookies are never stored).
 

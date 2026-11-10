@@ -2,9 +2,12 @@
 """Import the chat history you export from ChatGPT, Claude and Google (Gemini).
 
   python3 collectors/exports.py <file.zip | folder | conversations.json> ...
+  python3 collectors/exports.py        # everything in your data folder
 
-The scheduled collector also imports any export .zip you drop into
-Documents/local-data, once per file. Re-importing the same export is safe,
+With no arguments it reads your data folder (the one given to setup, else
+Documents/local-data): every export zip and unzipped export inside it.
+The scheduled collector also imports any export .zip you drop there, once
+per file. Re-importing the same export is safe,
 and so is importing an export that overlaps chats already recorded.
 
   Google Takeout (Gemini)  Takeout/My Activity/Gemini Apps/MyActivity.json
@@ -205,7 +208,9 @@ def iter_export(path: Path):
     path = Path(path)
     if path.is_dir():
         for f in sorted(path.rglob("*")):
-            if f.is_file() and f.suffix in (".json", ".txt"):
+            if f.is_file() and f.suffix == ".zip":
+                yield from iter_export(f)
+            elif f.is_file() and f.suffix in (".json", ".txt"):
                 got = _route(str(f.relative_to(path)), f.read_bytes)
                 if got:
                     yield from got
@@ -256,9 +261,14 @@ def import_dropped(con, folder: Path) -> int:
 
 
 def main(argv):
-    if not argv:
+    if argv and argv[0] in ("-h", "--help"):
         print(__doc__)
-        return 1
+        return 0
+    if not argv:
+        sys.path.insert(0, str(HERE))
+        import run
+        argv = [str(run.EXPORT_DIR)]
+        print(f"Reading {run.EXPORT_DIR}")
     con = store.connect()
     for p in argv:
         counts = import_export(con, Path(p).expanduser())
